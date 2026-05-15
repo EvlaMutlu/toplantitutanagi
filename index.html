@@ -5,7 +5,6 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Meeting Record / Toplantı Tutanağı</title>
   <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@tabler/icons-webfont@3.4.0/dist/tabler-icons.min.css">
-  <script src="https://cdn.jsdelivr.net/npm/xlsx-js-style@1.2.0/dist/xlsx.bundle.js"></script>
   <style>
     *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
 
@@ -162,24 +161,6 @@
       border-bottom: 0.5px solid var(--border-light);
       margin-bottom: 12px;
     }
-
-    /* ── Meeting type ── */
-    .type-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
-    .type-option {
-      display: flex;
-      align-items: center;
-      gap: 8px;
-      padding: 8px 10px;
-      border: 0.5px solid var(--border-light);
-      border-radius: var(--radius-md);
-      cursor: pointer;
-      font-size: 12px;
-      color: var(--text-secondary);
-      transition: all 0.12s;
-    }
-    .type-option:hover { border-color: var(--border-mid); color: var(--text-primary); background: var(--bg-secondary); }
-    .type-option.selected { border-color: var(--border-strong); background: var(--bg-secondary); color: var(--text-primary); font-weight: 500; }
-    .type-option input { accent-color: var(--text-primary); }
 
     /* ── Participant table ── */
     .p-table {
@@ -375,6 +356,32 @@
       margin-bottom: 12px; display: flex; align-items: flex-start; gap: 6px;
     }
 
+    /* ── Print / PDF ── */
+    @media print {
+      body { background: #fff; padding: 0; }
+      .page {
+        border: none; border-radius: 0; padding: 1.5cm 1.8cm;
+        box-shadow: none; max-width: 100%;
+      }
+      .form-footer .btn-group,
+      .add-row-btn,
+      .icon-btn,
+      .sig-btn,
+      #assignRow,
+      #draftPdfBtn,
+      .modal-backdrop { display: none !important; }
+      .sig-status { border: 0.5px solid #ccc; }
+      .doc-header { border-bottom: 2px solid #1B3A6B; }
+      .section-label, .col-heading { color: #1B3A6B; }
+      .p-table, .decisions-table { border: 1px solid #ccc; }
+      .p-table thead th, .decisions-table thead th { background: #F2F4F6 !important; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+      .stat-card { background: #F2F4F6 !important; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+      textarea { border: 1px solid #ccc; resize: none; }
+      input[type=text], input[type=date], input[type=time], input[type=email] { border: none; border-bottom: 0.5px solid #ccc; background: transparent; }
+      .form-footer { border-top: 0.5px solid #ccc; margin-top: 1.5rem; }
+      @page { size: A4; margin: 0; }
+    }
+
     /* ── Toast ── */
     .toast {
       position: fixed; bottom: 24px; right: 24px;
@@ -412,15 +419,16 @@
     <div class="meta-fields">
       <div class="meta-row">
         <span>Meeting no</span>
-        <span class="meeting-no-badge" id="meetingNo">—</span>
+        <span class="meeting-no-badge" id="meetingNo">TASLAK</span>
+      </div>
+      <div class="meta-row" id="assignRow" style="justify-content:flex-end;">
+        <button class="btn" id="assignNoBtn" style="font-size:11px;padding:4px 10px;color:var(--accent-info-text);border-color:var(--accent-info-border);background:var(--accent-info-bg);">
+          <i class="ti ti-hash"></i> Numara al
+        </button>
       </div>
       <div class="meta-row">
         <span>Date</span>
         <input type="date" id="headerDate">
-      </div>
-      <div class="meta-row">
-        <span>Page</span>
-        <input type="text" value="1" style="width:60px;text-align:center">
       </div>
     </div>
   </div>
@@ -474,13 +482,14 @@
         <div class="stat-card"><div class="stat-label">Rate</div><div class="stat-value" id="statRate">0%</div></div>
       </div>
 
-      <div class="col-heading" style="margin-bottom:10px">Meeting type / Toplantı Türü</div>
-      <div class="type-grid">
-        <label class="type-option"><input type="radio" name="mtype" value="ygg"> Overview of management</label>
-        <label class="type-option"><input type="radio" name="mtype" value="board"> Board meeting</label>
-        <label class="type-option"><input type="radio" name="mtype" value="commission"> Commission meeting</label>
-        <label class="type-option"><input type="radio" name="mtype" value="quality"> Quality meeting</label>
-        <label class="type-option" style="grid-column:1/-1"><input type="radio" name="mtype" value="other"> Other / Faculty meeting</label>
+      <div class="col-heading" style="margin-bottom:10px">Toplantı Bilgileri / Meeting Info</div>
+      <div class="field-group" style="margin-bottom:10px;">
+        <label>Düzenleyen Birim / Organising Unit</label>
+        <input type="text" id="meetingUnit" placeholder="Birim adını giriniz...">
+      </div>
+      <div class="field-group">
+        <label>Toplantı Adı / Meeting Name</label>
+        <input type="text" id="meetingName" placeholder="Toplantı adını giriniz...">
       </div>
     </div>
   </div>
@@ -516,12 +525,32 @@
   <div class="form-footer">
     <span class="form-num">Form No: ÜY-FR-0006 · Rev. 0 · 03.05.2018</span>
     <div class="btn-group">
-      <button class="btn" id="exportXlsxBtn"><i class="ti ti-file-spreadsheet"></i> Export to Excel</button>
+      <button class="btn" id="draftPdfBtn"><i class="ti ti-file-download"></i> Taslak indir</button>
       <button class="btn" onclick="window.print()"><i class="ti ti-printer"></i> Print</button>
+      <button class="btn btn-primary" id="savePdfBtn"><i class="ti ti-download"></i> Save as PDF</button>
     </div>
   </div>
 
 </div><!-- /page -->
+
+<!-- ── Numara Al Uyarı Modal ── -->
+<div class="modal-backdrop" id="assignWarningModal" style="display:none" role="dialog" aria-modal="true">
+  <div class="modal" style="max-width:420px;">
+    <div style="display:flex;align-items:center;gap:10px;margin-bottom:10px;">
+      <i class="ti ti-alert-triangle" style="font-size:22px;color:var(--accent-warning-text)"></i>
+      <div class="modal-title" style="margin:0;">Toplantı numarası almak üzeresiniz</div>
+    </div>
+    <p style="font-size:13px;color:var(--text-secondary);line-height:1.6;margin-bottom:16px;">
+      Lütfen <strong>sadece kesinleşen toplantılar</strong> için numara alınız.<br>
+      Sistem otomatik olarak sıradaki numarayı atayacaktır ve bu işlem <strong>geri alınamaz</strong>.<br><br>
+      Taslak aşamasındaki toplantılar için <em>"Taslak indir"</em> seçeneğini kullanabilirsiniz.
+    </p>
+    <div class="modal-actions">
+      <button class="btn" id="assignCancelBtn">Vazgeç</button>
+      <button class="btn btn-primary" id="assignConfirmBtn"><i class="ti ti-hash"></i> Numarayı al</button>
+    </div>
+  </div>
+</div>
 
 <!-- ── Signature modal ── -->
 <div class="modal-backdrop" id="sigModal" style="display:none" role="dialog" aria-modal="true" aria-label="Signature pad">
@@ -576,6 +605,8 @@
     try {
       localStorage.setItem('mr_participants', JSON.stringify(participants));
       localStorage.setItem('mr_signatures',   JSON.stringify(signatures));
+      localStorage.setItem('mr_unit',  document.getElementById('meetingUnit')?.value || '');
+      localStorage.setItem('mr_mname', document.getElementById('meetingName')?.value || '');
     } catch(e) {}
   }
 
@@ -585,6 +616,10 @@
       const s = localStorage.getItem('mr_signatures');
       if (p) participants = JSON.parse(p);
       if (s) signatures   = JSON.parse(s);
+      const unit  = localStorage.getItem('mr_unit');
+      const mname = localStorage.getItem('mr_mname');
+      if (unit)  { const el = document.getElementById('meetingUnit');  if (el) el.value = unit; }
+      if (mname) { const el = document.getElementById('meetingName');  if (el) el.value = mname; }
     } catch(e) {}
   }
 
@@ -600,25 +635,47 @@
 
   /* ─── Init ─── */
   function init() {
-    // Set today
     const today = new Date().toISOString().split('T')[0];
     document.getElementById('headerDate').value  = today;
     document.getElementById('meetingDate').value = today;
 
-    // Meeting number
-    meetingNo = generateMeetingNo();
-    document.getElementById('meetingNo').textContent = meetingNo;
+    // Numara yok — TASLAK olarak başla
+    meetingNo = '';
+    document.getElementById('meetingNo').textContent = 'TASLAK';
 
-    // Load saved data
     load();
     if (!participants.length) {
       participants = [{name:'',email:'',notified:false},{name:'',email:'',notified:false},{name:'',email:'',notified:false}];
     }
-
-    // Render
     renderParticipants();
     addDecisionRow(); addDecisionRow(); addDecisionRow();
   }
+
+  /* ─── Numara Al ─── */
+  document.getElementById('assignNoBtn').addEventListener('click', () => {
+    if (meetingNo) {
+      showToast(`Bu toplantı zaten ${meetingNo} numarasını almış.`, 'info');
+      return;
+    }
+    // Uyarı modal'ı göster
+    document.getElementById('assignWarningModal').style.display = 'flex';
+  });
+
+  document.getElementById('assignConfirmBtn').addEventListener('click', () => {
+    meetingNo = generateMeetingNo();
+    document.getElementById('meetingNo').textContent = meetingNo;
+    // "Numara al" butonunu gizle, numara kesinleşti
+    document.getElementById('assignRow').style.display = 'none';
+    document.getElementById('assignWarningModal').style.display = 'none';
+    showToast(`${meetingNo} numarası atandı.`, 'success');
+    save();
+  });
+
+  document.getElementById('assignCancelBtn').addEventListener('click', () => {
+    document.getElementById('assignWarningModal').style.display = 'none';
+  });
+
+
 
   /* ─── Participants ─── */
   function renderParticipants() {
@@ -701,14 +758,6 @@
     tbody.appendChild(tr);
   }
   document.getElementById('addDecisionBtn').addEventListener('click', addDecisionRow);
-
-  /* ─── Meeting type ─── */
-  document.querySelectorAll('.type-option').forEach(opt => {
-    opt.querySelector('input').addEventListener('change', () => {
-      document.querySelectorAll('.type-option').forEach(o => o.classList.remove('selected'));
-      opt.classList.add('selected');
-    });
-  });
 
   /* ─── Signature pad ─── */
   let canvas, ctx, drawing=false, lastX=0, lastY=0;
@@ -826,297 +875,28 @@
     return String(str).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
   }
 
-  /* ─── Excel Export ─── */
 
-  // ── Stil sabitleri ──
-  const XL = {
-    NAVY:  "1B3A6B",
-    TEAL:  "0D7EA8",
-    WHITE: "FFFFFF",
-    LGRAY: "F2F4F6",
-    MGRAY: "D0D5DC",
-    BLACK: "000000",
-    DKGRAY:"666666",
-
-    hdr(bg, color, sz, bold) {
-      return {
-        font:      { name:"Arial", sz: sz||10, bold: bold!==false, color:{rgb: color||"FFFFFF"} },
-        fill:      { fgColor:{ rgb: bg||"1B3A6B" }, patternType:"solid" },
-        alignment: { horizontal:"center", vertical:"center", wrapText:true },
-        border:    XL.border()
-      };
-    },
-    sub(bg) {
-      return {
-        font:      { name:"Arial", sz:8, bold:true, color:{rgb:"1B3A6B"} },
-        fill:      { fgColor:{ rgb: bg||"F2F4F6" }, patternType:"solid" },
-        alignment: { horizontal:"left", vertical:"center" },
-        border:    XL.border()
-      };
-    },
-    cell(bg, bold, center) {
-      return {
-        font:      { name:"Arial", sz:9, bold:!!bold, color:{rgb:"000000"} },
-        fill:      { fgColor:{ rgb: bg||"FFFFFF" }, patternType:"solid" },
-        alignment: { horizontal: center?"center":"left", vertical:"center", wrapText:true },
-        border:    XL.border()
-      };
-    },
-    footer() {
-      return {
-        font:      { name:"Arial", sz:7, color:{rgb:"888888"} },
-        fill:      { fgColor:{ rgb:"F2F4F6" }, patternType:"solid" },
-        alignment: { horizontal:"center", vertical:"center" },
-        border:    XL.border()
-      };
-    },
-    border() {
-      const s = { style:"thin", color:{rgb:"D0D5DC"} };
-      return { left:s, right:s, top:s, bottom:s };
+  /* ─── Save as PDF ─── */
+  document.getElementById('savePdfBtn').addEventListener('click', () => {
+    if (!meetingNo) {
+      showToast('Lütfen önce "Numara al" butonuna basarak toplantı numarası alınız.', 'warning');
+      document.getElementById('assignNoBtn').style.outline = '2px solid var(--accent-warning-text)';
+      setTimeout(() => document.getElementById('assignNoBtn').style.outline = '', 2500);
+      return;
     }
-  };
+    const origTitle = document.title;
+    document.title = `Toplanti_Tutanagi_${meetingNo}`;
+    window.print();
+    document.title = origTitle;
+  });
 
-  // Hücre yaz + stil uygula
-  function sc(ws, addr, value, style, range) {
-    ws[addr] = { v: value, t: typeof value==='number'?'n':'s', s: style };
-    const ref = XLSX.utils.decode_cell(addr);
-    if (!range.s || ref.r < range.s.r) { range.s = range.s||{}; range.s.r = ref.r; range.s.c = ref.c; }
-    if (ref.r > (range.e||{r:-1}).r) { range.e = range.e||{}; range.e.r = ref.r; }
-    if (ref.c > (range.e||{c:-1}).c) { range.e = range.e||{}; range.e.c = ref.c; }
-  }
-
-  // Birleştirme + doldur (birleşik alanda boş hücreleri de stillendir)
-  function merge(ws, merges, r1, c1, r2, c2, value, style) {
-    const addr = XLSX.utils.encode_cell({r:r1, c:c1});
-    ws[addr] = { v: value, t: typeof value==='number'?'n':'s', s: style };
-    merges.push({ s:{r:r1,c:c1}, e:{r:r2,c:c2} });
-    for (let r=r1; r<=r2; r++) {
-      for (let c=c1; c<=c2; c++) {
-        const a = XLSX.utils.encode_cell({r,c});
-        if (!ws[a]) ws[a] = { v:'', t:'s', s: style };
-      }
-    }
-  }
-
-  function buildFormattedSheet(data) {
-    const ws = {};
-    const merges = [];
-    const range  = { s:{r:0,c:0}, e:{r:0,c:9} };
-    let r = 0;
-
-    const COL = 9; // A(0)..J(9)
-
-    // Sütun genişlikleri
-    ws['!cols'] = [
-      {wch:4},   // A  #
-      {wch:20},  // B  isim / karar
-      {wch:12},  // C  devam
-      {wch:22},  // D  email
-      {wch:12},  // E  bildirim
-      {wch:14},  // F  imza
-      {wch:18},  // G  sorumlu
-      {wch:12},  // H  termin
-      {wch:14},  // I  etiket sağ
-      {wch:14},  // J  değer sağ
-    ];
-
-    // ── SATIR 0: Ana başlık ──
-    ws['!rows'] = [];
-    ws['!rows'][r] = {hpt:36};
-    merge(ws, merges, r,0, r,7, "TOPLANTI TUTANAĞI  /  MEETING RECORD",
-      XL.hdr(XL.NAVY, XL.WHITE, 13, true));
-    merge(ws, merges, r,8, r,9, `Toplantı No:  ${data.meetingNo}`,
-      XL.hdr(XL.TEAL, XL.WHITE, 10, true));
-    r++;
-
-    // ── SATIR 1: Tarih / Sayfa ──
-    ws['!rows'][r] = {hpt:16};
-    merge(ws, merges, r,0, r,7, '',
-      { fill:{fgColor:{rgb:XL.LGRAY},patternType:"solid"}, border:XL.border() });
-    merge(ws, merges, r,8, r,9, `Tarih: ${data.date}    Sayfa: 1`,
-      { font:{name:"Arial",sz:8,color:{rgb:XL.DKGRAY}},
-        fill:{fgColor:{rgb:XL.LGRAY},patternType:"solid"},
-        alignment:{horizontal:"right",vertical:"center"},
-        border:XL.border() });
-    r++;
-
-    // ── Boşluk ──
-    ws['!rows'][r] = {hpt:6}; r++;
-
-    // ── SATIR 3-4: Yer / Tarih / Saat başlıkları ──
-    ws['!rows'][r] = {hpt:15};
-    merge(ws, merges, r,0, r,2, "TOPLANTI YERİ  /  MEETING PLACE",   XL.sub());
-    merge(ws, merges, r,3, r,5, "TOPLANTI TARİHİ  /  MEETING DATE",  XL.sub());
-    merge(ws, merges, r,6, r,9, "BAŞLAMA SAATİ  /  START TIME",      XL.sub());
-    r++;
-
-    ws['!rows'][r] = {hpt:20};
-    merge(ws, merges, r,0, r,2, data.place, XL.cell(XL.WHITE, false, false));
-    merge(ws, merges, r,3, r,5, data.date,  XL.cell(XL.WHITE, false, false));
-    merge(ws, merges, r,6, r,9, data.time,  XL.cell(XL.WHITE, false, false));
-    r++;
-
-    // ── Boşluk ──
-    ws['!rows'][r] = {hpt:6}; r++;
-
-    // ── Toplantı Türü ──
-    ws['!rows'][r] = {hpt:15};
-    merge(ws, merges, r,0, r,2, "TOPLANTI TÜRÜ  /  MEETING TYPE", XL.sub());
-    merge(ws, merges, r,3, r,9, '', XL.sub());
-    r++;
-
-    ws['!rows'][r] = {hpt:18};
-    merge(ws, merges, r,0, r,9, data.type, XL.cell(XL.WHITE, false, false));
-    r++;
-
-    // ── Boşluk ──
-    ws['!rows'][r] = {hpt:6}; r++;
-
-    // ── Katılımcı başlık ──
-    ws['!rows'][r] = {hpt:18};
-    merge(ws, merges, r,0, r,9, "KATILIMCI ONAYI  /  PARTICIPANT APPROVAL",
-      XL.hdr(XL.NAVY, XL.WHITE, 10, true));
-    r++;
-
-    // Tablo kolon başlıkları
-    ws['!rows'][r] = {hpt:15};
-    const pHdrs = [
-      [0,0,"#"], [1,2,"Ad Soyad / Name Surname"], [3,4,"E-posta / Email"],
-      [5,5,"Bildirim"], [6,6,"İmza / Signature"], [7,7,"Bek."], [8,8,"Kat."], [9,9,"Oran"]
-    ];
-    pHdrs.forEach(([c1,c2,lbl]) => {
-      merge(ws, merges, r,c1, r,c2, lbl, XL.sub(XL.LGRAY));
-    });
-    r++;
-
-    // Katılımcı satırları
-    const namedP = data.participants.filter(p => p.name && p.name.trim());
-    const totalP = namedP.length;
-    const signedP = data.stats ? parseInt(data.stats.signed)||0 : 0;
-    const rate   = data.stats ? data.stats.rate : '0%';
-
-    if (!namedP.length) {
-      ws['!rows'][r] = {hpt:18};
-      merge(ws, merges, r,0, r,9, '—', XL.cell(XL.WHITE, false, true));
-      r++;
-    } else {
-      namedP.forEach((p, i) => {
-        ws['!rows'][r] = {hpt:18};
-        const bg = i%2===0 ? XL.WHITE : XL.LGRAY;
-        const sigSt = data.signatureStatus?.[String(data.participants.indexOf(p))] || 
-                      (data.participants[i] && signatures[i] ? 'Signed' : '');
-        merge(ws, merges, r,0,r,0, i+1,                                     XL.cell(bg,false,true));
-        merge(ws, merges, r,1,r,2, p.name,                                   XL.cell(bg));
-        merge(ws, merges, r,3,r,4, p.email||'',                              XL.cell(bg));
-        merge(ws, merges, r,5,r,5, p.notified?'✓ Gönderildi':'—',           XL.cell(bg,false,true));
-        merge(ws, merges, r,6,r,6, sigSt?'✓ İmzalandı':'Bekleniyor',        XL.cell(bg,false,true));
-        // İstatistik sütunları ilk 3 satırda
-        if (i===0) { ws[XLSX.utils.encode_cell({r,c:7})] = {v:'Beklenen:',t:'s',s:XL.cell(XL.LGRAY,true,true)}; ws[XLSX.utils.encode_cell({r,c:8})] = {v:totalP,t:'n',s:XL.cell(XL.LGRAY,false,true)}; }
-        if (i===1) { ws[XLSX.utils.encode_cell({r,c:7})] = {v:'Katılan:',t:'s',s:XL.cell(XL.LGRAY,true,true)};  ws[XLSX.utils.encode_cell({r,c:8})] = {v:signedP,t:'n',s:XL.cell(XL.LGRAY,false,true)}; }
-        if (i===2) { ws[XLSX.utils.encode_cell({r,c:7})] = {v:'Oran:',t:'s',s:XL.cell(XL.LGRAY,true,true)};     ws[XLSX.utils.encode_cell({r,c:8})] = {v:rate,t:'s',s:XL.cell(XL.LGRAY,false,true)}; }
-        // J sütununu doldur
-        if (![0,1,2].includes(i)) merge(ws,merges,r,7,r,9,'',XL.cell(bg));
-        else { const a=XLSX.utils.encode_cell({r,c:9}); if(!ws[a]) ws[a]={v:'',t:'s',s:XL.cell(XL.LGRAY)}; }
-        r++;
-      });
-    }
-
-    // ── Boşluk ──
-    ws['!rows'][r] = {hpt:6}; r++;
-
-    // ── Gündem ──
-    ws['!rows'][r] = {hpt:18};
-    merge(ws, merges, r,0, r,9, "TOPLANTI GÜNDEMİ  /  MEETING AGENDA",
-      XL.hdr(XL.NAVY, XL.WHITE, 10, true));
-    r++;
-
-    const agendaLines = (data.agenda||'—').split('\n').length;
-    ws['!rows'][r] = {hpt: Math.max(40, agendaLines*14)};
-    merge(ws, merges, r,0, r,9, data.agenda||'—',
-      { font:{name:"Arial",sz:9,color:{rgb:XL.BLACK}},
-        fill:{fgColor:{rgb:XL.WHITE},patternType:"solid"},
-        alignment:{horizontal:"left",vertical:"top",wrapText:true},
-        border:XL.border() });
-    r++;
-
-    // ── Boşluk ──
-    ws['!rows'][r] = {hpt:6}; r++;
-
-    // ── Kararlar ──
-    ws['!rows'][r] = {hpt:18};
-    merge(ws, merges, r,0, r,9, "TOPLANTIDA ALINAN KARARLAR  /  MEETING DECISIONS",
-      XL.hdr(XL.NAVY, XL.WHITE, 10, true));
-    r++;
-
-    // Karar tablo başlıkları
-    ws['!rows'][r] = {hpt:15};
-    merge(ws, merges, r,0,r,0, "#",                        XL.sub(XL.LGRAY));
-    merge(ws, merges, r,1,r,6, "Karar / Decision",         XL.sub(XL.LGRAY));
-    merge(ws, merges, r,7,r,8, "Sorumlu / Responsible",    XL.sub(XL.LGRAY));
-    merge(ws, merges, r,9,r,9, "Termin / Deadline",        XL.sub(XL.LGRAY));
-    r++;
-
-    if (!data.decisions || !data.decisions.length) {
-      ws['!rows'][r] = {hpt:18};
-      merge(ws, merges, r,0, r,9, '—', XL.cell(XL.WHITE, false, true));
-      r++;
-    } else {
-      data.decisions.forEach((d, i) => {
-        ws['!rows'][r] = {hpt:18};
-        const bg = i%2===0 ? XL.WHITE : XL.LGRAY;
-        merge(ws, merges, r,0,r,0, i+1,           XL.cell(bg,false,true));
-        merge(ws, merges, r,1,r,6, d.decision||'', XL.cell(bg));
-        merge(ws, merges, r,7,r,8, d.responsible||'', XL.cell(bg));
-        merge(ws, merges, r,9,r,9, d.deadline||'',    XL.cell(bg));
-        r++;
-      });
-    }
-
-    // ── Boşluk + footer ──
-    ws['!rows'][r] = {hpt:6}; r++;
-    ws['!rows'][r] = {hpt:13};
-    merge(ws, merges, r,0, r,9,
-      "Form No: ÜY-FR-0006  |  Yayın Tarihi: 03.05.2018  |  Değ.No: 0  |  Değ. Tarihi: —",
-      XL.footer());
-
-    ws['!ref']    = XLSX.utils.encode_range({s:{r:0,c:0}, e:{r:r,c:COL}});
-    ws['!merges'] = merges;
-    return ws;
-  }
-
-  // Collect current decisions from the DOM
-  function collectDecisions() {
-    const rows = [];
-    document.querySelectorAll('#decisionsBody tr').forEach(tr => {
-      const inputs = tr.querySelectorAll('input');
-      if (inputs.length >= 3) {
-        const decision   = inputs[0].value.trim();
-        const responsible = inputs[1].value.trim();
-        const deadline   = inputs[2].value.trim();
-        if (decision || responsible || deadline) {
-          rows.push({ decision, responsible, deadline });
-        }
-      }
-    });
-    return rows;
-  }
-
-  // Get selected meeting type label
-  function getMeetingTypeLabel() {
-    const checked = document.querySelector('input[name="mtype"]:checked');
-    if (!checked) return '—';
-    const labels = {
-      ygg: 'Overview of Management / YGG Toplantısı',
-      board: 'Board Meeting / Kurul Toplantısı',
-      commission: 'Commission Meeting / Komisyon Toplantısı',
-      quality: 'Quality Meeting / Kalite Toplantısı',
-      other: 'Other / Diğer'
-    };
-    return labels[checked.value] || checked.value;
-  }
-
-  document.getElementById('exportXlsxBtn').addEventListener('click', exportToExcel);
-
+  /* ─── Taslak indir ─── */
+  document.getElementById('draftPdfBtn').addEventListener('click', () => {
+    const origTitle = document.title;
+    document.title = 'Toplanti_Tutanagi_TASLAK';
+    window.print();
+    document.title = origTitle;
+  });
 
   /* ─── Start ─── */
   init();
